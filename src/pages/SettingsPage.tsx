@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
-import { CURRENCY_OPTIONS } from '../types'
+import { useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
+import { CURRENCY_OPTIONS, getCategoryOptions } from '../types'
 import { useAuth } from '../hooks/useAuth'
 import { useFinTrack } from '../hooks/useFinTrack'
 import { Button } from '../components/ui/Button'
@@ -7,11 +8,12 @@ import { useToast } from '../components/ui/Toast'
 
 export function SettingsPage() {
   const { profile } = useAuth()
-  const { user, syncMeta, triggerSync, exportBackup, importBackup, updateProfile, theme, setTheme, clearLocalData, deleteDriveData } = useFinTrack()
+  const { user, syncMeta, triggerSync, exportBackup, importBackup, updateProfile, createCustomCategory, moveCategory, theme, setTheme, clearLocalData, deleteDriveData } = useFinTrack()
   const { pushToast } = useToast()
   const [currency, setCurrency] = useState(user?.currency ?? 'INR')
   const [budget, setBudget] = useState(String(user?.monthlyBudget ?? 0))
   const importRef = useRef<HTMLInputElement>(null)
+  const categoryOptions = useMemo(() => getCategoryOptions(user), [user])
 
   return (
     <div className="space-y-5">
@@ -81,6 +83,54 @@ export function SettingsPage() {
           <Button variant="ghost" fullWidth onClick={() => window.open('https://drive.google.com/drive/home', '_blank')}>
             View data in Google Drive
           </Button>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] bg-white p-5 shadow-sm dark:bg-stone-900">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-semibold text-stone-900 dark:text-stone-50">Categories</h3>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              const label = window.prompt('New category name')
+              if (!label) return
+              const id = await createCustomCategory(label)
+              if (id) pushToast('Category added')
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add
+          </Button>
+        </div>
+        <div className="mt-4 space-y-3">
+          {categoryOptions.map((category, index) => (
+            <div key={category.id} className="flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-700 dark:bg-stone-800">
+              <div className="flex items-center gap-3">
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color }} />
+                <span className="font-medium text-stone-900 dark:text-stone-50">{category.label}</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="min-h-11 min-w-11 rounded-xl bg-white text-stone-700 disabled:opacity-40 dark:bg-stone-900 dark:text-stone-100"
+                  disabled={index === 0}
+                  onClick={async () => {
+                    await moveCategory(category.id, 'up')
+                  }}
+                >
+                  <ArrowUp className="mx-auto h-4 w-4" />
+                </button>
+                <button
+                  className="min-h-11 min-w-11 rounded-xl bg-white text-stone-700 disabled:opacity-40 dark:bg-stone-900 dark:text-stone-100"
+                  disabled={index === categoryOptions.length - 1}
+                  onClick={async () => {
+                    await moveCategory(category.id, 'down')
+                  }}
+                >
+                  <ArrowDown className="mx-auto h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

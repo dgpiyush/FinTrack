@@ -38,6 +38,7 @@ export interface User {
   currency: string
   monthlyBudget: number
   customCategories: CustomCategory[]
+  categoryOrder: string[]
   createdAt: string
 }
 
@@ -47,6 +48,7 @@ export interface Expense {
   currency: string
   note: string
   category: ExpenseCategory
+  categoryLabel?: string
   date: string
   tripId?: string
   receiptImageBase64?: string
@@ -145,6 +147,70 @@ export function createCustomCategoryMeta(seed: string): Pick<CategoryMeta, 'colo
   }
 }
 
+export function isDefaultCategory(category: string): category is DefaultExpenseCategory {
+  return category in CATEGORIES
+}
+
+function normalizeCustomCategoryLabel(category: Pick<CustomCategory, 'id' | 'label'>) {
+  const label = category.label?.trim()
+  if (!label || label === category.id || label.startsWith('custom:')) {
+    return 'Custom category'
+  }
+  return label
+}
+
+export function normalizeUserCategories(
+  user: User | null,
+  expenses: Expense[] = [],
+  budgets: Budget[] = [],
+): User | null {
+  if (!user) return null
+
+  const existing = (user.customCategories ?? []).map((category) => ({
+    ...category,
+    label: normalizeCustomCategoryLabel(category),
+  }))
+  const map = new Map(existing.map((category) => [category.id, category]))
+
+  expenses.forEach((expense) => {
+    if (isDefaultCategory(expense.category)) return
+    if (map.has(expense.category)) return
+    const label = expense.categoryLabel?.trim() || 'Custom category'
+    const meta = createCustomCategoryMeta(label)
+    map.set(expense.category, {
+      id: expense.category,
+      label,
+      color: meta.color,
+      bgColor: meta.bgColor,
+    })
+  })
+
+  budgets.forEach((budget) => {
+    if (budget.category === 'total' || isDefaultCategory(budget.category) || map.has(budget.category)) return
+    const meta = createCustomCategoryMeta(budget.category)
+    map.set(budget.category, {
+      id: budget.category,
+      label: 'Custom category',
+      color: meta.color,
+      bgColor: meta.bgColor,
+    })
+  })
+
+  const customCategories = Array.from(map.values())
+  const categoryOrder = [...(user.categoryOrder ?? []), ...customCategories.map((category) => category.id)]
+  const seen = new Set<string>()
+
+  return {
+    ...user,
+    customCategories,
+    categoryOrder: categoryOrder.filter((id) => {
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    }),
+  }
+}
+
 export function getAllCategories(user?: User | null) {
   const customEntries =
     user?.customCategories.map((category) => [
@@ -185,7 +251,24 @@ export function getCategoryOptions(user?: User | null) {
       bgColor: category.bgColor,
       icon: Tag,
     })) ?? []
-  return [...base, ...custom]
+  const all = [...base, ...custom]
+  const preferredOrder = user?.categoryOrder ?? []
+  const map = new Map(all.map((category) => [category.id, category]))
+  const ordered = preferredOrder
+    .map((id) => map.get(id))
+    .filter(
+      (
+        category,
+      ): category is {
+        id: string
+        label: string
+        color: string
+        bgColor: string
+        icon: LucideIcon
+      } => Boolean(category),
+    )
+  const remaining = all.filter((category) => !preferredOrder.includes(category.id))
+  return [...ordered, ...remaining]
 }
 
 export const CURRENCY_OPTIONS = [

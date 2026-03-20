@@ -14,6 +14,7 @@ export function ExpenseRow({
 }) {
   const category = getCategoryMeta(expense.category, user)
   const Icon = category.icon
+  const categoryLabel = expense.categoryLabel || category.label
 
   return (
     <div className="group flex items-center gap-3 rounded-[22px] bg-white px-3 py-3 shadow-sm dark:bg-stone-900">
@@ -26,7 +27,7 @@ export function ExpenseRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-stone-900 dark:text-stone-50">{expense.note || 'Untitled expense'}</p>
-          <p className="truncate text-sm text-stone-500">{category.label}</p>
+          <p className="truncate text-sm text-stone-500">{categoryLabel}</p>
         </div>
         <div className="text-right">
           <p className="font-semibold text-stone-900 dark:text-stone-50">

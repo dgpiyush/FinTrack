@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Budget } from '../../types'
+import { getCategoryMeta, type Budget } from '../../types'
 import { Button } from '../ui/Button'
 import { Sheet } from '../ui/Sheet'
 import { useFinTrack } from '../../hooks/useFinTrack'
@@ -17,7 +17,7 @@ export function BudgetSheet({
   onClose: () => void
   onSaved: () => void
 }) {
-  const { saveBudget } = useFinTrack()
+  const { saveBudget, user } = useFinTrack()
   const [amount, setAmount] = useState('')
   const [threshold, setThreshold] = useState(80)
 
@@ -31,7 +31,7 @@ export function BudgetSheet({
     <Sheet open={open} onClose={onClose} title="Edit budget">
       <div className="space-y-5">
         <div className="rounded-2xl bg-stone-100 px-4 py-3 text-sm text-stone-700 dark:bg-stone-800 dark:text-stone-100">
-          {category}
+          {category === 'total' ? 'Total monthly' : getCategoryMeta(category, user).label}
         </div>
         <input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-700 dark:bg-stone-800" placeholder="Monthly amount" />
         <label className="block">

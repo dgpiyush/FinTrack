@@ -11,7 +11,7 @@ import type { ReactNode } from 'react'
 import { db } from '../services/db'
 import { deleteDriveFile, downloadFromDrive, getOrCreateDriveFile, uploadToDrive } from '../services/drive'
 import { buildBackup, mergeData } from '../services/sync'
-import { createCustomCategoryMeta } from '../types'
+import { createCustomCategoryMeta, getCategoryOptions, normalizeUserCategories } from '../types'
 import type { Budget, CustomCategory, DriveBackup, Expense, SyncMeta, Trip, User } from '../types'
 import { createId } from '../utils/uuid'
 import { useAuth } from './useAuth'
@@ -67,6 +67,7 @@ interface FinTrackContextValue {
   saveBudget: (input: BudgetInput, existingId?: string) => Promise<void>
   updateProfile: (payload: { currency: string; monthlyBudget: number }) => Promise<void>
   createCustomCategory: (label: string) => Promise<string | null>
+  moveCategory: (categoryId: string, direction: 'up' | 'down') => Promise<void>
   triggerSync: (manual?: boolean) => Promise<void>
   exportBackup: () => DriveBackup
   importBackup: (backup: DriveBackup) => Promise<void>
@@ -111,7 +112,17 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
       db.getSyncMeta(),
       db.isIndexedDbAvailable(),
     ])
-    const storedUser = rawUser ? { ...rawUser, customCategories: rawUser.customCategories ?? [] } : null
+    const storedUser = normalizeUserCategories(
+      rawUser
+        ? {
+            ...rawUser,
+            customCategories: rawUser.customCategories ?? [],
+            categoryOrder: rawUser.categoryOrder ?? [],
+          }
+        : null,
+      storedExpenses,
+      storedBudgets,
+    )
     setUser(storedUser)
     setExpenses(storedExpenses)
     setTrips(storedTrips)
@@ -133,7 +144,19 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
       await db.replaceAll(backup)
       const nextMeta = { ...syncMeta, ...metaOverride }
       await updateSyncMeta(nextMeta)
-      setUser(backup.user ? { ...backup.user, customCategories: backup.user.customCategories ?? [] } : null)
+      setUser(
+        normalizeUserCategories(
+          backup.user
+            ? {
+                ...backup.user,
+                customCategories: backup.user.customCategories ?? [],
+                categoryOrder: backup.user.categoryOrder ?? [],
+              }
+            : null,
+          backup.expenses,
+          backup.budgets,
+        ),
+      )
       setExpenses(backup.expenses.sort((a, b) => b.date.localeCompare(a.date)))
       setTrips(backup.trips.sort((a, b) => b.startDate.localeCompare(a.startDate)))
       setBudgets(backup.budgets)
@@ -228,6 +251,7 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
         currency,
         monthlyBudget,
         customCategories: [],
+        categoryOrder: [],
         createdAt: new Date().toISOString(),
       }
       await db.putUser(newUser)
@@ -241,12 +265,20 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
     async (input: ExpenseInput, existingId?: string) => {
       const existing = existingId ? expenses.find((item) => item.id === existingId) : undefined
       const now = new Date().toISOString()
-      const expense: Expense = { id: existing?.id ?? createId(), createdAt: existing?.createdAt ?? now, updatedAt: now, isDeleted: false, ...input }
+      const selectedCategory = getCategoryOptions(user).find((category) => category.id === input.category)
+      const expense: Expense = {
+        id: existing?.id ?? createId(),
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        isDeleted: false,
+        categoryLabel: selectedCategory?.label ?? existing?.categoryLabel,
+        ...input,
+      }
       await db.putExpense(expense)
       await refreshLocalData()
       await queueSync()
     },
-    [expenses, queueSync, refreshLocalData],
+    [expenses, queueSync, refreshLocalData, user],
   )
 
   const deleteExpense = useCallback(
@@ -327,11 +359,43 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
       const nextUser = {
         ...user,
         customCategories: [...existingCategories, newCategory],
+        categoryOrder: [...(user.categoryOrder ?? []), newCategory.id],
       }
       await db.putUser(nextUser)
       setUser(nextUser)
       await queueSync()
       return newCategory.id
+    },
+    [queueSync, user],
+  )
+
+  const moveCategory = useCallback(
+    async (categoryId: string, direction: 'up' | 'down') => {
+      if (!user) return
+      const currentOrder = [...(user.categoryOrder ?? [])]
+      const canonicalOrder = currentOrder.length
+        ? currentOrder
+        : [
+            'food',
+            'transport',
+            'shopping',
+            'bills',
+            'health',
+            'entertainment',
+            'accommodation',
+            'other',
+            ...(user.customCategories ?? []).map((category) => category.id),
+          ]
+      const index = canonicalOrder.indexOf(categoryId)
+      if (index === -1) return
+      const nextIndex = direction === 'up' ? index - 1 : index + 1
+      if (nextIndex < 0 || nextIndex >= canonicalOrder.length) return
+      const reordered = [...canonicalOrder]
+      ;[reordered[index], reordered[nextIndex]] = [reordered[nextIndex], reordered[index]]
+      const nextUser = { ...user, categoryOrder: reordered }
+      await db.putUser(nextUser)
+      setUser(nextUser)
+      await queueSync()
     },
     [queueSync, user],
   )
@@ -381,13 +445,14 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
       saveBudget,
       updateProfile,
       createCustomCategory,
+      moveCategory,
       triggerSync,
       exportBackup,
       importBackup,
       clearLocalData,
       deleteDriveData,
     }),
-    [budgets, clearLocalData, completeOnboarding, createCustomCategory, deleteDriveData, deleteExpense, deleteTrip, expenses, exportBackup, importBackup, indexedDbAvailable, loading, profile, saveBudget, saveExpense, saveTrip, syncMeta, syncState, theme, triggerSync, trips, updateProfile, user],
+    [budgets, clearLocalData, completeOnboarding, createCustomCategory, deleteDriveData, deleteExpense, deleteTrip, expenses, exportBackup, importBackup, indexedDbAvailable, loading, moveCategory, profile, saveBudget, saveExpense, saveTrip, syncMeta, syncState, theme, triggerSync, trips, updateProfile, user],
   )
 
   return <FinTrackContext.Provider value={value}>{children}</FinTrackContext.Provider>

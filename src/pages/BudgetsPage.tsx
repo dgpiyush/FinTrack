@@ -4,7 +4,7 @@ import { BudgetRow } from '../components/budgets/BudgetRow'
 import { BudgetSheet } from '../components/budgets/BudgetSheet'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFinTrack } from '../hooks/useFinTrack'
-import { getCategoryOptions, type Budget } from '../types'
+import { getCategoryMeta, getCategoryOptions, type Budget } from '../types'
 import { useToast } from '../components/ui/Toast'
 
 export function BudgetsPage() {
@@ -45,7 +45,9 @@ export function BudgetsPage() {
                   }}
                   className="flex w-full items-center justify-between rounded-[24px] border border-dashed border-stone-300 px-4 py-4 text-left dark:border-stone-700"
                 >
-                  <span className="font-medium text-stone-900 dark:text-stone-50">{category === 'total' ? 'Total monthly' : category}</span>
+                  <span className="font-medium text-stone-900 dark:text-stone-50">
+                    {category === 'total' ? 'Total monthly' : getCategoryMeta(category, user).label}
+                  </span>
                   <span className="text-sm text-emerald-700">Set budget</span>
                 </button>
               )}
