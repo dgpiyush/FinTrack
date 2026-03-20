@@ -23,7 +23,7 @@ export function LoginPage() {
     )
   }
 
-  if (profile && accessToken && user) return <Navigate to="/" replace />
+  if (profile && user) return <Navigate to="/" replace />
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(15,110,86,0.18),_transparent_35%),linear-gradient(180deg,#f8faf7_0%,#f2ece2_100%)] px-4 dark:bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_30%),linear-gradient(180deg,#0b1220_0%,#111827_100%)]">

@@ -10,7 +10,7 @@ import { ToastProvider } from './components/ui/Toast'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId='962828595661-k25p2sr2i3tfu5adgfe2cvihqasvl6i7.apps.googleusercontent.com'>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''}>
       <BrowserRouter>
         <ToastProvider>
           <AuthProvider>

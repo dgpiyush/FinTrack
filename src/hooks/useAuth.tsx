@@ -29,155 +29,204 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 const CLIENT_ID = '962828595661-k25p2sr2i3tfu5adgfe2cvihqasvl6i7.apps.googleusercontent.com'
 const AUTH_PROFILE_KEY = 'fintrack-auth-profile'
+const PENDING_DRIVE_AUTH_KEY = 'fintrack-pending-drive-auth'
+const REDIRECT_PATH = '/login'
+
+function createState() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `state-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function getRedirectUri() {
+  return `${window.location.origin}${REDIRECT_PATH}`
+}
+
+function storeProfile(profile: AuthProfile | null) {
+  if (!profile) {
+    localStorage.removeItem(AUTH_PROFILE_KEY)
+    return
+  }
+  localStorage.setItem(AUTH_PROFILE_KEY, JSON.stringify(profile))
+}
+
+function readStoredProfile() {
+  const stored = localStorage.getItem(AUTH_PROFILE_KEY)
+  if (!stored) return null
+  try {
+    return JSON.parse(stored) as AuthProfile
+  } catch {
+    localStorage.removeItem(AUTH_PROFILE_KEY)
+    return null
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<AuthProfile | null>(() => {
-    const stored = localStorage.getItem(AUTH_PROFILE_KEY)
-    if (!stored) return null
-    try {
-      return JSON.parse(stored) as AuthProfile
-    } catch {
-      localStorage.removeItem(AUTH_PROFILE_KEY)
-      return null
-    }
-  })
+  const [profile, setProfile] = useState<AuthProfile | null>(() => readStoredProfile())
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [status, setStatus] = useState<AuthStatus>('signed_out')
   const [initializing, setInitializing] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const refreshTimeoutRef = useRef<number | null>(null)
-  const authAttemptTimeoutRef = useRef<number | null>(null)
-  const hasRestoredRef = useRef(false)
+  const expiryTimeoutRef = useRef<number | null>(null)
 
-  const clearRefreshTimeout = () => {
-    if (refreshTimeoutRef.current) {
-      window.clearTimeout(refreshTimeoutRef.current)
-      refreshTimeoutRef.current = null
+  const clearExpiryTimeout = () => {
+    if (expiryTimeoutRef.current) {
+      window.clearTimeout(expiryTimeoutRef.current)
+      expiryTimeoutRef.current = null
     }
   }
 
-  const clearAuthAttemptTimeout = () => {
-    if (authAttemptTimeoutRef.current) {
-      window.clearTimeout(authAttemptTimeoutRef.current)
-      authAttemptTimeoutRef.current = null
-    }
-  }
-
-  const requestTokenInternal = useCallback(
-    (authProfile: AuthProfile, prompt: '' | 'select_account' = '', options?: { failSilently?: boolean }) => {
-      if (!window.google?.accounts.oauth2 || !CLIENT_ID) {
-        if (!CLIENT_ID) setError('Missing Google client ID.')
+  const startDriveRedirect = useCallback(
+    (authProfile: AuthProfile, prompt: '' | 'select_account' = 'select_account') => {
+      if (!CLIENT_ID) {
+        setError('Missing Google client ID.')
+        setStatus('error')
         setInitializing(false)
         return
       }
 
-      setStatus(prompt ? 'authorizing' : 'refreshing')
-      clearAuthAttemptTimeout()
-      authAttemptTimeoutRef.current = window.setTimeout(() => {
-        if (options?.failSilently) {
-          setStatus('signed_out')
-          setProfile(null)
-          localStorage.removeItem(AUTH_PROFILE_KEY)
-          setError(null)
-        } else {
-          setStatus('error')
-          setError(
-            'Google Drive authorization did not complete. This is usually caused by a blocked popup, a Cross-Origin-Opener-Policy header, or a missing authorized origin in Google Cloud.',
-          )
-        }
-        setInitializing(false)
-      }, 15000)
-      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+      const state = createState()
+      sessionStorage.setItem(
+        PENDING_DRIVE_AUTH_KEY,
+        JSON.stringify({
+          state,
+          profile: authProfile,
+          requestedAt: Date.now(),
+        }),
+      )
+
+      setProfile(authProfile)
+      storeProfile(authProfile)
+      setStatus('authorizing')
+      setError(null)
+      setInitializing(false)
+
+      const params = new URLSearchParams({
         client_id: CLIENT_ID,
+        redirect_uri: getRedirectUri(),
+        response_type: 'token',
         scope: getDriveScope(),
-        callback: (response) => {
-          clearAuthAttemptTimeout()
-          if (response.error || !response.access_token) {
-            if (options?.failSilently) {
-              setStatus('signed_out')
-              setAccessToken(null)
-              setProfile(null)
-              localStorage.removeItem(AUTH_PROFILE_KEY)
-              setError(null)
-            } else {
-              setError('Sign-in failed. Please try again.')
-              setStatus('error')
-            }
-            setInitializing(false)
-            return
-          }
-          setAccessToken(response.access_token)
-          setStatus('ready')
-          setError(null)
-          setInitializing(false)
-          clearRefreshTimeout()
-          const expiresIn = response.expires_in ?? 3600
-          refreshTimeoutRef.current = window.setTimeout(
-            () => requestTokenInternal(authProfile, '', { failSilently: true }),
-            Math.max((expiresIn - 300) * 1000, 60_000),
-          )
-        },
+        include_granted_scopes: 'true',
+        state,
+        login_hint: authProfile.email,
       })
 
-      tokenClient.requestAccessToken({ prompt, hint: authProfile.email })
+      if (prompt) params.set('prompt', prompt)
+      window.location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`)
     },
     [],
   )
 
-  const requestToken = useCallback(
-    (prompt: '' | 'select_account' = '') => {
+  const refreshToken = useCallback(
+    (prompt: '' | 'select_account' = 'select_account') => {
       if (!profile) return
-      requestTokenInternal(profile, prompt)
+      startDriveRedirect(profile, prompt)
     },
-    [profile, requestTokenInternal],
+    [profile, startDriveRedirect],
   )
 
-  const handleGoogleLogin = useCallback((response: CredentialResponse) => {
-    if (!response.credential) {
-      setError('Sign-in failed. Please try again.')
-      setStatus('error')
-      setInitializing(false)
-      return
-    }
-    const parsedProfile = decodeCredential(response.credential)
-    setProfile(parsedProfile)
-    localStorage.setItem(AUTH_PROFILE_KEY, JSON.stringify(parsedProfile))
-    setStatus('authorizing')
-    setError(null)
-    requestTokenInternal(parsedProfile, 'select_account')
-  }, [requestTokenInternal])
+  const handleGoogleLogin = useCallback(
+    (response: CredentialResponse) => {
+      if (!response.credential) {
+        setError('Sign-in failed. Please try again.')
+        setStatus('error')
+        setInitializing(false)
+        return
+      }
+
+      const parsedProfile = decodeCredential(response.credential)
+      startDriveRedirect(parsedProfile, 'select_account')
+    },
+    [startDriveRedirect],
+  )
 
   useEffect(() => {
-    if (!profile) {
+    const pendingRaw = sessionStorage.getItem(PENDING_DRIVE_AUTH_KEY)
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const returnedToken = params.get('access_token')
+    const returnedError = params.get('error')
+    const returnedState = params.get('state')
+
+    if (!pendingRaw && !returnedToken && !returnedError) {
+      setStatus((current) => (profile ? current : 'signed_out'))
       setInitializing(false)
       return
     }
-    if (hasRestoredRef.current) return
-    hasRestoredRef.current = true
-    requestTokenInternal(profile, '', { failSilently: true })
-  }, [profile, requestTokenInternal])
+
+    let pending: { state: string; profile: AuthProfile } | null = null
+    if (pendingRaw) {
+      try {
+        pending = JSON.parse(pendingRaw) as { state: string; profile: AuthProfile }
+      } catch {
+        sessionStorage.removeItem(PENDING_DRIVE_AUTH_KEY)
+      }
+    }
+
+    if (returnedToken && pending && returnedState === pending.state) {
+      const expiresIn = Number(params.get('expires_in') ?? '3600')
+      setProfile(pending.profile)
+      storeProfile(pending.profile)
+      setAccessToken(returnedToken)
+      setStatus('ready')
+      setError(null)
+      sessionStorage.removeItem(PENDING_DRIVE_AUTH_KEY)
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+      clearExpiryTimeout()
+      expiryTimeoutRef.current = window.setTimeout(() => {
+        setAccessToken(null)
+        setStatus('signed_out')
+      }, Math.max(expiresIn * 1000, 60_000))
+      setInitializing(false)
+      return
+    }
+
+    if (returnedError) {
+      sessionStorage.removeItem(PENDING_DRIVE_AUTH_KEY)
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+      setAccessToken(null)
+      setStatus('error')
+      setError(returnedError === 'access_denied' ? 'Google Drive access was not granted.' : 'Google Drive authorization failed.')
+      setInitializing(false)
+      return
+    }
+
+    if (pending && returnedState && pending.state !== returnedState) {
+      sessionStorage.removeItem(PENDING_DRIVE_AUTH_KEY)
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+      setAccessToken(null)
+      setStatus('error')
+      setError('Google Drive authorization state did not match. Please try again.')
+      setInitializing(false)
+      return
+    }
+
+    setInitializing(false)
+  }, [profile])
 
   const signOut = useCallback(() => {
-    clearRefreshTimeout()
-    clearAuthAttemptTimeout()
+    clearExpiryTimeout()
     setProfile(null)
     setAccessToken(null)
     setStatus('signed_out')
     setError(null)
     setInitializing(false)
     localStorage.removeItem(AUTH_PROFILE_KEY)
+    sessionStorage.removeItem(PENDING_DRIVE_AUTH_KEY)
   }, [])
 
-  const cleanupTimeouts = useCallback(() => {
-    clearRefreshTimeout()
-    clearAuthAttemptTimeout()
-  }, [])
-
-  useEffect(() => () => cleanupTimeouts(), [cleanupTimeouts])
+  useEffect(() => () => clearExpiryTimeout(), [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ profile, accessToken, status, initializing, error, handleGoogleLogin, refreshToken: requestToken, signOut }),
-    [accessToken, error, handleGoogleLogin, initializing, profile, requestToken, signOut, status],
+    () => ({
+      profile,
+      accessToken,
+      status,
+      initializing,
+      error,
+      handleGoogleLogin,
+      refreshToken,
+      signOut,
+    }),
+    [accessToken, error, handleGoogleLogin, initializing, profile, refreshToken, signOut, status],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

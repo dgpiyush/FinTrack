@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 
 export function SettingsPage() {
-  const { profile } = useAuth()
+  const { profile, accessToken, refreshToken } = useAuth()
   const { user, syncMeta, triggerSync, exportBackup, importBackup, updateProfile, createCustomCategory, moveCategory, theme, setTheme, clearLocalData, deleteDriveData } = useFinTrack()
   const { pushToast } = useToast()
   const [currency, setCurrency] = useState(user?.currency ?? 'INR')
@@ -40,8 +40,18 @@ export function SettingsPage() {
         <h3 className="font-semibold text-stone-900 dark:text-stone-50">Data & sync</h3>
         <p className="mt-2 text-sm text-stone-500">Last synced: {syncMeta.lastSyncedAt ? new Date(syncMeta.lastSyncedAt).toLocaleString() : 'Never'}</p>
         <div className="mt-4 grid gap-3">
-          <Button fullWidth onClick={async () => { await triggerSync(true); pushToast('Sync requested') }}>
-            Sync now
+          <Button
+            fullWidth
+            onClick={async () => {
+              if (!accessToken) {
+                refreshToken('select_account')
+                return
+              }
+              await triggerSync(true)
+              pushToast('Sync requested')
+            }}
+          >
+            {accessToken ? 'Sync now' : 'Connect Drive'}
           </Button>
           <Button
             variant="secondary"
