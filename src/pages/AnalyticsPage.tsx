@@ -4,7 +4,7 @@ import { MonthlyBarChart } from '../components/charts/MonthlyBarChart'
 import { CategoryDonut } from '../components/charts/CategoryDonut'
 import { DailyLineChart } from '../components/charts/DailyLineChart'
 import { useFinTrack } from '../hooks/useFinTrack'
-import { CATEGORY_ORDER, CATEGORIES } from '../types'
+import { getAllCategories, getCategoryMeta } from '../types'
 import { formatCurrency } from '../utils/currency'
 import { Button } from '../components/ui/Button'
 
@@ -14,6 +14,7 @@ export function AnalyticsPage() {
   const { expenses, user, budgets } = useFinTrack()
   const [period, setPeriod] = useState<Period>('1m')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const categories = useMemo(() => getAllCategories(user), [user])
 
   const months = useMemo(() => {
     const now = new Date()
@@ -39,11 +40,15 @@ export function AnalyticsPage() {
     return { label, amount, color }
   })
 
-  const categoryData = CATEGORY_ORDER.map((category) => ({
-    name: category,
-    value: filteredExpenses.filter((expense) => expense.category === category).reduce((sum, expense) => sum + expense.amount, 0),
-    color: CATEGORIES[category].color,
-  })).filter((item) => item.value > 0)
+  const categoryTotals = filteredExpenses.reduce<Record<string, number>>((acc, expense) => {
+    acc[expense.category] = (acc[expense.category] ?? 0) + expense.amount
+    return acc
+  }, {})
+  const categoryData = Object.entries(categoryTotals).map(([name, value]) => ({
+    name,
+    value,
+    color: (categories[name] ?? getCategoryMeta(name, user)).color,
+  }))
 
   const currentMonthExpenses = filteredExpenses.filter((expense) => format(new Date(expense.date), 'yyyy-MM') === format(new Date(), 'yyyy-MM'))
   const dailyMap = new Map<string, number>()
@@ -81,7 +86,7 @@ export function AnalyticsPage() {
       <section className="grid gap-3">
         <div className="rounded-[26px] bg-white p-4 shadow-sm dark:bg-stone-900">
           <p className="text-sm text-stone-500">Top category this month</p>
-          <p className="mt-1 font-semibold text-stone-900 dark:text-stone-50">{topCategory ? `${CATEGORIES[topCategory.name as keyof typeof CATEGORIES].label} (${formatCurrency(topCategory.value, user?.currency ?? 'INR')})` : 'No spending yet'}</p>
+          <p className="mt-1 font-semibold text-stone-900 dark:text-stone-50">{topCategory ? `${getCategoryMeta(topCategory.name, user).label} (${formatCurrency(topCategory.value, user?.currency ?? 'INR')})` : 'No spending yet'}</p>
         </div>
         <div className="rounded-[26px] bg-white p-4 shadow-sm dark:bg-stone-900">
           <p className="text-sm text-stone-500">Biggest single expense</p>

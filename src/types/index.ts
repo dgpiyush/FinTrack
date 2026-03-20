@@ -7,10 +7,11 @@ import {
   MoreHorizontal,
   Receipt,
   ShoppingBag,
+  Tag,
   UtensilsCrossed,
 } from 'lucide-react'
 
-export type ExpenseCategory =
+export type DefaultExpenseCategory =
   | 'food'
   | 'transport'
   | 'shopping'
@@ -20,6 +21,15 @@ export type ExpenseCategory =
   | 'accommodation'
   | 'other'
 
+export type ExpenseCategory = string
+
+export interface CustomCategory {
+  id: string
+  label: string
+  color: string
+  bgColor: string
+}
+
 export interface User {
   id: string
   name: string
@@ -27,6 +37,7 @@ export interface User {
   avatar: string
   currency: string
   monthlyBudget: number
+  customCategories: CustomCategory[]
   createdAt: string
 }
 
@@ -62,7 +73,7 @@ export interface Trip {
 
 export interface Budget {
   id: string
-  category: ExpenseCategory | 'total'
+  category: string | 'total'
   amount: number
   period: 'monthly'
   threshold: number
@@ -103,7 +114,7 @@ export interface CategoryMeta {
   icon: LucideIcon
 }
 
-export const CATEGORIES: Record<ExpenseCategory, CategoryMeta> = {
+export const CATEGORIES: Record<DefaultExpenseCategory, CategoryMeta> = {
   food: { label: 'Food', color: '#EF9F27', bgColor: '#FAEEDA', icon: UtensilsCrossed },
   transport: { label: 'Transport', color: '#378ADD', bgColor: '#E6F1FB', icon: Car },
   shopping: { label: 'Shopping', color: '#D4537E', bgColor: '#FBEAF0', icon: ShoppingBag },
@@ -114,7 +125,68 @@ export const CATEGORIES: Record<ExpenseCategory, CategoryMeta> = {
   other: { label: 'Other', color: '#B4B2A9', bgColor: '#F1EFE8', icon: MoreHorizontal },
 }
 
-export const CATEGORY_ORDER = Object.keys(CATEGORIES) as ExpenseCategory[]
+export const CATEGORY_ORDER = Object.keys(CATEGORIES) as DefaultExpenseCategory[]
+
+const CUSTOM_CATEGORY_PALETTE = [
+  ['#0F766E', '#CCFBF1'],
+  ['#C2410C', '#FFEDD5'],
+  ['#BE123C', '#FFE4E6'],
+  ['#4338CA', '#E0E7FF'],
+  ['#047857', '#D1FAE5'],
+  ['#7C3AED', '#EDE9FE'],
+] as const
+
+export function createCustomCategoryMeta(seed: string): Pick<CategoryMeta, 'color' | 'bgColor' | 'icon'> {
+  const palette = CUSTOM_CATEGORY_PALETTE[Math.abs(seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) % CUSTOM_CATEGORY_PALETTE.length]
+  return {
+    color: palette[0],
+    bgColor: palette[1],
+    icon: Tag,
+  }
+}
+
+export function getAllCategories(user?: User | null) {
+  const customEntries =
+    user?.customCategories.map((category) => [
+      category.id,
+      {
+        label: category.label,
+        color: category.color,
+        bgColor: category.bgColor,
+        icon: Tag,
+      },
+    ] as const) ?? []
+
+  return {
+    ...CATEGORIES,
+    ...Object.fromEntries(customEntries),
+  } as Record<string, CategoryMeta>
+}
+
+export function getCategoryMeta(category: string, user?: User | null): CategoryMeta {
+  const all = getAllCategories(user)
+  return (
+    all[category] ?? {
+      label: category,
+      color: '#78716C',
+      bgColor: '#E7E5E4',
+      icon: MoreHorizontal,
+    }
+  )
+}
+
+export function getCategoryOptions(user?: User | null) {
+  const base = CATEGORY_ORDER.map((id) => ({ id, ...CATEGORIES[id] }))
+  const custom =
+    user?.customCategories.map((category) => ({
+      id: category.id,
+      label: category.label,
+      color: category.color,
+      bgColor: category.bgColor,
+      icon: Tag,
+    })) ?? []
+  return [...base, ...custom]
+}
 
 export const CURRENCY_OPTIONS = [
   ['INR', '₹', 'Indian Rupee'],

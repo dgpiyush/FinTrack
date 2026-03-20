@@ -35,6 +35,24 @@ textarea {
   font: inherit;
 }
 
+.dark input,
+.dark select,
+.dark textarea {
+  color: #f5f5f4;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #a8a29e;
+}
+
+.dark input:disabled,
+.dark select:disabled,
+.dark textarea:disabled {
+  color: #d6d3d1;
+  opacity: 1;
+}
+
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }

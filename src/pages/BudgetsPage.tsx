@@ -4,7 +4,7 @@ import { BudgetRow } from '../components/budgets/BudgetRow'
 import { BudgetSheet } from '../components/budgets/BudgetSheet'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFinTrack } from '../hooks/useFinTrack'
-import { CATEGORY_ORDER, type Budget } from '../types'
+import { getCategoryOptions, type Budget } from '../types'
 import { useToast } from '../components/ui/Toast'
 
 export function BudgetsPage() {
@@ -17,7 +17,7 @@ export function BudgetsPage() {
     return expenses.filter((expense) => isWithinInterval(parseISO(expense.date), range))
   }, [expenses])
 
-  const rows: Budget['category'][] = ['total', ...CATEGORY_ORDER]
+  const rows: Budget['category'][] = ['total', ...getCategoryOptions(user).map((category) => category.id)]
 
   return (
     <div className="space-y-4">
@@ -31,6 +31,7 @@ export function BudgetsPage() {
                   budget={budget}
                   expenses={monthExpenses}
                   currency={user?.currency ?? 'INR'}
+                  user={user}
                   onEdit={() => {
                     setSelectedCategory(category)
                     setSelectedBudget(budget)

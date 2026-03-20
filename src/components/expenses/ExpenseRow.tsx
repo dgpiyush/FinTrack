@@ -1,16 +1,18 @@
-import { CATEGORIES, type Expense } from '../../types'
+import { getCategoryMeta, type Expense, type User } from '../../types'
 import { formatCurrency } from '../../utils/currency'
 
 export function ExpenseRow({
   expense,
+  user,
   onClick,
   onDelete,
 }: {
   expense: Expense
+  user?: User | null
   onClick?: () => void
   onDelete?: () => void
 }) {
-  const category = CATEGORIES[expense.category]
+  const category = getCategoryMeta(expense.category, user)
   const Icon = category.icon
 
   return (

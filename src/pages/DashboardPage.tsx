@@ -6,7 +6,7 @@ import { ExpenseList } from '../components/expenses/ExpenseList'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFinTrack } from '../hooks/useFinTrack'
 import { formatCurrency } from '../utils/currency'
-import { CATEGORIES, type Expense } from '../types'
+import { getCategoryMeta, type Expense } from '../types'
 import { getDaysLeft, isTripActive } from '../utils/date'
 import { useToast } from '../components/ui/Toast'
 import { Button } from '../components/ui/Button'
@@ -68,7 +68,7 @@ export function DashboardPage() {
           {categoryBudgets.length ? (
             categoryBudgets.map((budget) => {
               if (budget.category === 'total') return null
-              const meta = CATEGORIES[budget.category]
+              const meta = getCategoryMeta(budget.category, user)
               const spent = currentMonthExpenses.filter((expense) => expense.category === budget.category).reduce((sum, expense) => sum + expense.amount, 0)
               return (
                 <button key={budget.id} onClick={() => navigate('/analytics')} className="min-w-[180px] rounded-[24px] bg-white p-4 text-left shadow-sm dark:bg-stone-900">
@@ -100,6 +100,7 @@ export function DashboardPage() {
         {recentExpenses.length ? (
           <ExpenseList
             expenses={recentExpenses}
+            user={user}
             onSelect={(expense) => {
               setSelectedExpense(expense)
               setSheetOpen(true)

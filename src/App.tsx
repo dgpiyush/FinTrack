@@ -16,9 +16,10 @@ import { useFinTrack } from './hooks/useFinTrack'
 import { TripDetail } from './components/trips/TripDetail'
 
 function ProtectedLayout() {
-  const { profile } = useAuth()
+  const { profile, initializing } = useAuth()
   const { loading, indexedDbAvailable } = useFinTrack()
 
+  if (initializing) return <Spinner />
   if (!profile) return <Navigate to="/login" replace />
   if (loading) return <Spinner />
 

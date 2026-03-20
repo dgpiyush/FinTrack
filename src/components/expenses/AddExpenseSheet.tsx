@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, ImagePlus } from 'lucide-react'
-import { CATEGORY_ORDER, CATEGORIES, type Expense } from '../../types'
+import { Camera, ImagePlus, Plus } from 'lucide-react'
+import { getCategoryOptions, type Expense } from '../../types'
 import { todayIso } from '../../utils/date'
 import { Button } from '../ui/Button'
 import { Sheet } from '../ui/Sheet'
@@ -54,8 +54,9 @@ export function AddExpenseSheet({
   onSaved: () => void
   onDeleted?: () => void
 }) {
-  const { user, saveExpense, deleteExpense, trips } = useFinTrack()
+  const { user, saveExpense, deleteExpense, trips, createCustomCategory } = useFinTrack()
   const activeTrip = useMemo(() => trips.find((trip) => initialTripId === trip.id), [initialTripId, trips])
+  const categoryOptions = useMemo(() => getCategoryOptions(user), [user])
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [category, setCategory] = useState<Expense['category']>('food')
@@ -105,24 +106,39 @@ export function AddExpenseSheet({
         <div>
           <span className="mb-2 block text-sm font-medium text-stone-700 dark:text-stone-200">Category</span>
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {CATEGORY_ORDER.map((key) => {
-              const meta = CATEGORIES[key]
+            {categoryOptions.map((option) => {
+              const key = option.id
+              const meta = option
               const Icon = meta.icon
               const active = category === key
               return (
                 <button
                   key={key}
                   onClick={() => setCategory(key)}
-                  className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
-                    active ? 'text-white' : 'text-stone-700 dark:text-stone-200'
+                  className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium ${
+                    active
+                      ? 'border-transparent text-white shadow-sm'
+                      : 'border-stone-200 bg-white text-stone-800 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100'
                   }`}
-                  style={{ backgroundColor: active ? meta.color : meta.bgColor }}
+                  style={active ? { backgroundColor: meta.color } : undefined}
                 >
                   <Icon className="h-4 w-4" />
                   {meta.label}
                 </button>
               )
             })}
+            <button
+              onClick={async () => {
+                const label = window.prompt('Create a new category')
+                if (!label) return
+                const categoryId = await createCustomCategory(label)
+                if (categoryId) setCategory(categoryId)
+              }}
+              className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-dashed border-emerald-400 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 dark:border-emerald-500/70 dark:bg-emerald-950/40 dark:text-emerald-200"
+            >
+              <Plus className="h-4 w-4" />
+              New category
+            </button>
           </div>
         </div>
 

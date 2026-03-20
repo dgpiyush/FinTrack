@@ -1,14 +1,16 @@
 import { formatDateLabel } from '../../utils/date'
-import type { Expense } from '../../types'
+import type { Expense, User } from '../../types'
 import { formatCurrency } from '../../utils/currency'
 import { ExpenseRow } from './ExpenseRow'
 
 export function ExpenseList({
   expenses,
+  user,
   onSelect,
   onDelete,
 }: {
   expenses: Expense[]
+  user?: User | null
   onSelect: (expense: Expense) => void
   onDelete: (id: string) => void
 }) {
@@ -33,6 +35,7 @@ export function ExpenseList({
               <ExpenseRow
                 key={expense.id}
                 expense={expense}
+                user={user}
                 onClick={() => onSelect(expense)}
                 onDelete={() => onDelete(expense.id)}
               />

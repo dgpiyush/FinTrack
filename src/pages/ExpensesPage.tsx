@@ -4,7 +4,7 @@ import { ExpenseList } from '../components/expenses/ExpenseList'
 import { AddExpenseSheet } from '../components/expenses/AddExpenseSheet'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFinTrack } from '../hooks/useFinTrack'
-import { CATEGORY_ORDER, CATEGORIES, type Expense } from '../types'
+import { getCategoryOptions, type Expense } from '../types'
 import { formatCurrency } from '../utils/currency'
 import { useToast } from '../components/ui/Toast'
 import { Button } from '../components/ui/Button'
@@ -22,6 +22,7 @@ export function ExpensesPage() {
   const [customEnd, setCustomEnd] = useState(endOfMonth(new Date()).toISOString().slice(0, 10))
   const [page, setPage] = useState(1)
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
+  const categoryOptions = useMemo(() => getCategoryOptions(user), [user])
 
   const range = useMemo(() => {
     const now = new Date()
@@ -68,13 +69,19 @@ export function ExpensesPage() {
           </div>
         ) : null}
         <div className="flex gap-2 overflow-x-auto">
-          {CATEGORY_ORDER.map((category) => (
+          {categoryOptions.map((category) => (
             <button
-              key={category}
-              onClick={() => setSelectedCategories((current) => (current.includes(category) ? current.filter((item) => item !== category) : [...current, category]))}
-              className={`rounded-full px-4 py-2 text-sm ${selectedCategories.includes(category) ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-200'}`}
+              key={category.id}
+              onClick={() =>
+                setSelectedCategories((current) =>
+                  current.includes(category.id)
+                    ? current.filter((item) => item !== category.id)
+                    : [...current, category.id],
+                )
+              }
+              className={`rounded-full px-4 py-2 text-sm ${selectedCategories.includes(category.id) ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-200'}`}
             >
-              {CATEGORIES[category].label}
+              {category.label}
             </button>
           ))}
         </div>
@@ -110,6 +117,7 @@ export function ExpensesPage() {
         <>
           <ExpenseList
             expenses={pagedExpenses}
+            user={user}
             onSelect={(expense) => setSelectedExpense(expense)}
             onDelete={async (id) => {
               if (!window.confirm('Delete this expense?')) return

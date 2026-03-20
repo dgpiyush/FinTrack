@@ -6,13 +6,22 @@ import { useFinTrack } from '../hooks/useFinTrack'
 import { CURRENCY_OPTIONS } from '../types'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { Spinner } from '../components/ui/Spinner'
 
 export function LoginPage() {
-  const { profile, accessToken, handleGoogleLogin, error, status } = useAuth()
+  const { profile, accessToken, handleGoogleLogin, error, status, initializing } = useAuth()
   const { needsOnboarding, completeOnboarding, user } = useFinTrack()
   const [step, setStep] = useState(1)
   const [currency, setCurrency] = useState('INR')
   const [budget, setBudget] = useState('')
+
+  if (initializing) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  }
 
   if (profile && accessToken && user) return <Navigate to="/" replace />
 

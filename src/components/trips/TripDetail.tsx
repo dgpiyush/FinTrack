@@ -12,7 +12,7 @@ import { useToast } from '../ui/Toast'
 
 export function TripDetail() {
   const { id } = useParams()
-  const { trips, expenses } = useFinTrack()
+  const { trips, expenses, user } = useFinTrack()
   const { pushToast } = useToast()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null)
@@ -67,6 +67,7 @@ export function TripDetail() {
       {tripExpenses.length ? (
         <ExpenseList
           expenses={tripExpenses}
+          user={user}
           onSelect={(expense) => {
             setSelectedExpenseId(expense.id)
             setSheetOpen(true)

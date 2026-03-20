@@ -1,15 +1,17 @@
-import { CATEGORIES, type Budget, type Expense } from '../../types'
+import { getCategoryMeta, type Budget, type Expense, type User } from '../../types'
 import { formatCurrency } from '../../utils/currency'
 
 export function BudgetRow({
   budget,
   expenses,
   currency,
+  user,
   onEdit,
 }: {
   budget: Budget
   expenses: Expense[]
   currency: string
+  user?: User | null
   onEdit: () => void
 }) {
   const spent =
@@ -23,7 +25,7 @@ export function BudgetRow({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="font-semibold text-stone-900 dark:text-stone-50">
-            {budget.category === 'total' ? 'Total monthly' : CATEGORIES[budget.category].label}
+            {budget.category === 'total' ? 'Total monthly' : getCategoryMeta(budget.category, user).label}
           </p>
           <p className="mt-1 text-sm text-stone-500">
             {formatCurrency(spent, currency)} spent of {formatCurrency(budget.amount, currency)}
