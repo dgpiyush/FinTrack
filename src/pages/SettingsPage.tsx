@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { CURRENCY_OPTIONS, getCategoryOptions } from '../types'
 import { useAuth } from '../hooks/useAuth'
 import { useFinTrack } from '../hooks/useFinTrack'
@@ -8,7 +8,7 @@ import { useToast } from '../components/ui/Toast'
 
 export function SettingsPage() {
   const { profile, accessToken, refreshToken } = useAuth()
-  const { user, syncMeta, triggerSync, exportBackup, importBackup, updateProfile, createCustomCategory, moveCategory, theme, setTheme, clearLocalData, deleteDriveData } = useFinTrack()
+  const { user, syncMeta, triggerSync, exportBackup, importBackup, updateProfile, createCustomCategory, deleteCustomCategory, moveCategory, theme, setTheme, clearLocalData, deleteDriveData } = useFinTrack()
   const { pushToast } = useToast()
   const [currency, setCurrency] = useState(user?.currency ?? 'INR')
   const [budget, setBudget] = useState(String(user?.monthlyBudget ?? 0))
@@ -120,6 +120,18 @@ export function SettingsPage() {
                 <span className="font-medium text-stone-900 dark:text-stone-50">{category.label}</span>
               </div>
               <div className="flex gap-2">
+                {category.id.startsWith('custom:') ? (
+                  <button
+                    className="min-h-11 min-w-11 rounded-xl bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300"
+                    onClick={async () => {
+                      if (!window.confirm(`Delete "${category.label}" and move its expenses to Other?`)) return
+                      await deleteCustomCategory(category.id, 'other')
+                      pushToast(`Category deleted. Related expenses moved to Other.`)
+                    }}
+                  >
+                    <Trash2 className="mx-auto h-4 w-4" />
+                  </button>
+                ) : null}
                 <button
                   className="min-h-11 min-w-11 rounded-xl bg-white text-stone-700 disabled:opacity-40 dark:bg-stone-900 dark:text-stone-100"
                   disabled={index === 0}

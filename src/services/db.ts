@@ -159,6 +159,15 @@ export const db = {
     await database.put('budgets', budget)
   },
 
+  async deleteBudget(id: string) {
+    const database = await getDatabase()
+    if (!database) {
+      memoryState.budgets.delete(id)
+      return
+    }
+    await database.delete('budgets', id)
+  },
+
   async getSyncMeta() {
     const database = await getDatabase()
     if (!database) return memoryState.syncMeta

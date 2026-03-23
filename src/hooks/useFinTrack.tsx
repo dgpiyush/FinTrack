@@ -67,6 +67,7 @@ interface FinTrackContextValue {
   saveBudget: (input: BudgetInput, existingId?: string) => Promise<void>
   updateProfile: (payload: { currency: string; monthlyBudget: number }) => Promise<void>
   createCustomCategory: (label: string) => Promise<string | null>
+  deleteCustomCategory: (categoryId: string, replacementCategory?: string) => Promise<void>
   moveCategory: (categoryId: string, direction: 'up' | 'down') => Promise<void>
   triggerSync: (manual?: boolean) => Promise<void>
   exportBackup: () => DriveBackup
@@ -369,6 +370,56 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
     [queueSync, user],
   )
 
+  const deleteCustomCategory = useCallback(
+    async (categoryId: string, replacementCategory = 'other') => {
+      if (!user) return
+      const customCategories = user.customCategories ?? []
+      const targetCategory = customCategories.find((category) => category.id === categoryId)
+      if (!targetCategory) return
+
+      const replacementMeta = getCategoryOptions(user).find((category) => category.id === replacementCategory)
+      const replacementLabel = replacementMeta?.label ?? 'Other'
+
+      const affectedExpenses = expenses.filter((expense) => expense.category === categoryId)
+      await Promise.all(
+        affectedExpenses.map((expense) =>
+          db.putExpense({
+            ...expense,
+            category: replacementCategory,
+            categoryLabel: replacementLabel,
+            updatedAt: new Date().toISOString(),
+          }),
+        ),
+      )
+
+      const affectedBudgets = budgets.filter((budget) => budget.category === categoryId)
+      const existingReplacementBudget = budgets.find((budget) => budget.category === replacementCategory)
+
+      for (const budget of affectedBudgets) {
+        if (existingReplacementBudget && existingReplacementBudget.id !== budget.id) {
+          await db.deleteBudget(budget.id)
+          continue
+        }
+        await db.putBudget({
+          ...budget,
+          category: replacementCategory,
+          updatedAt: new Date().toISOString(),
+        })
+      }
+
+      const nextUser = {
+        ...user,
+        customCategories: customCategories.filter((category) => category.id !== categoryId),
+        categoryOrder: (user.categoryOrder ?? []).filter((id) => id !== categoryId),
+      }
+      await db.putUser(nextUser)
+      setUser(nextUser)
+      await refreshLocalData()
+      await queueSync()
+    },
+    [budgets, expenses, queueSync, refreshLocalData, user],
+  )
+
   const moveCategory = useCallback(
     async (categoryId: string, direction: 'up' | 'down') => {
       if (!user) return
@@ -445,6 +496,7 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
       saveBudget,
       updateProfile,
       createCustomCategory,
+      deleteCustomCategory,
       moveCategory,
       triggerSync,
       exportBackup,
@@ -452,7 +504,7 @@ export function FinTrackProvider({ children }: { children: ReactNode }) {
       clearLocalData,
       deleteDriveData,
     }),
-    [budgets, clearLocalData, completeOnboarding, createCustomCategory, deleteDriveData, deleteExpense, deleteTrip, expenses, exportBackup, importBackup, indexedDbAvailable, loading, moveCategory, profile, saveBudget, saveExpense, saveTrip, syncMeta, syncState, theme, triggerSync, trips, updateProfile, user],
+    [budgets, clearLocalData, completeOnboarding, createCustomCategory, deleteCustomCategory, deleteDriveData, deleteExpense, deleteTrip, expenses, exportBackup, importBackup, indexedDbAvailable, loading, moveCategory, profile, saveBudget, saveExpense, saveTrip, syncMeta, syncState, theme, triggerSync, trips, updateProfile, user],
   )
 
   return <FinTrackContext.Provider value={value}>{children}</FinTrackContext.Provider>
